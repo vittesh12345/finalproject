@@ -1,61 +1,66 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8" />
-  <title>Wild Rydes</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Wild Rydes</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="description" content="Serverless web application example" />
+  <meta name="author" content="" />
+
   <link
     rel="stylesheet"
     href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
     crossorigin="anonymous"
   />
   <link rel="stylesheet" href="https://js.arcgis.com/4.6/esri/css/main.css" />
+  <link rel="stylesheet" href="css/ride.css" />
+  <link rel="stylesheet" href="css/message.css" />
+
   <style>
-    html,
-    body,
     #map {
-      padding: 0;
-      margin: 0;
       height: 400px;
       width: 100%;
     }
-    .info {
-      margin: 10px;
-    }
   </style>
 </head>
+
 <body>
   <div class="info panel panel-default">
     <div class="panel-heading">
-      <button id="request" class="btn btn-primary" disabled>Set pickup</button>
+      <button id="request" class="btn btn-primary" disabled="disabled">Set pickup</button>
       <div class="dropdown pull-right">
-        <button class="btn dropdown-toggle" data-toggle="dropdown">
+        <button id="accountLink" class="btn dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
           Account <span class="caret"></span>
         </button>
-        <ul class="dropdown-menu">
+        <ul class="dropdown-menu" aria-labelledby="accountLink">
           <li><a id="signOut" href="#">Sign out</a></li>
         </ul>
       </div>
     </div>
     <div class="panel-body">
       <ol id="updates">
-        <li>Click the map to set your pickup location.</li>
+        <li>Welcome! Click the map to set your pickup location.</li>
       </ol>
     </div>
   </div>
 
-  <div id="map"></div>
+  <div id="main">
+    <div id="map"></div>
+  </div>
 
   <!-- Load dependencies -->
   <script src="js/vendor/jquery-3.1.0.js"></script>
   <script src="js/vendor/bootstrap.min.js"></script>
   <script src="https://js.arcgis.com/4.6/"></script>
+  <script src="js/config.js"></script>
 
   <script>
-    // Block redirects to signin.html
-    ['assign', 'replace'].forEach(fn => {
+    // Block redirects to signin.html to prevent kicking back
+    ['assign', 'replace'].forEach(function (fn) {
       const orig = window.location[fn];
-      window.location[fn] = function(url) {
+      window.location[fn] = function (url) {
         if (typeof url === 'string' && url.includes('signin.html')) {
           console.log('Blocked redirect to signin:', url);
           return;
@@ -63,144 +68,138 @@
         return orig.call(window.location, url);
       };
     });
+
     Object.defineProperty(window.location, 'href', {
-      set(url) {
+      set: function (url) {
         if (typeof url === 'string' && url.includes('signin.html')) {
           console.log('Blocked setting href to signin:', url);
           return;
         }
         window.location.assign(url);
       },
-      get() {
+      get: function () {
         return window.location.toString();
-      }
+      },
     });
 
-    // Initialize WildRydes global object
+    // Set dummy auth token
     window.WildRydes = window.WildRydes || {};
+    WildRydes.authToken = Promise.resolve('dummy-token');
     WildRydes.map = WildRydes.map || {};
-    WildRydes.authToken = Promise.resolve('dummy-token'); // Dummy token for testing
     WildRydes.map.selectedPoint = null;
 
-    // API invoke URL
-    const API_INVOKE_URL = "https://8u38kmxsz7.execute-api.us-east-2.amazonaws.com/Prod";
+    // Your API invoke URL
+    const API_INVOKE_URL = 'https://8u38kmxsz7.execute-api.us-east-2.amazonaws.com/Prod';
 
-    // Function to display messages in the updates list
+    // Display updates in the list
     function displayUpdate(text) {
       $('#updates').append($('<li>').text(text));
     }
 
-    // Initialize map and add click handler
-    require([
-      "esri/Map",
-      "esri/views/MapView",
-      "esri/Graphic",
-      "esri/layers/GraphicsLayer"
-    ], function(Map, MapView, Graphic, GraphicsLayer) {
+    // Initialize Esri map and setup click to select pickup point
+    require(['esri/Map', 'esri/views/MapView', 'esri/Graphic', 'esri/layers/GraphicsLayer'], function (Map, MapView, Graphic, GraphicsLayer) {
       const map = new Map({
-        basemap: "streets-navigation-vector"
+        basemap: 'streets-navigation-vector',
       });
 
       const view = new MapView({
-        container: "map",
+        container: 'map',
         map: map,
-        center: [-122.4194, 37.7749], // San Francisco
-        zoom: 12
+        center: [-122.4194, 37.7749], // SF coords
+        zoom: 12,
       });
 
       const graphicsLayer = new GraphicsLayer();
       map.add(graphicsLayer);
 
-      // On map click
-      view.on("click", function(event) {
-        // Clear previous graphics
+      view.on('click', function (event) {
         graphicsLayer.removeAll();
 
-        // Add a marker at clicked location
         const point = {
-          type: "point",
+          type: 'point',
           longitude: event.mapPoint.longitude,
-          latitude: event.mapPoint.latitude
+          latitude: event.mapPoint.latitude,
         };
 
         const markerSymbol = {
-          type: "simple-marker",
-          color: "blue",
+          type: 'simple-marker',
+          color: 'blue',
           outline: {
             color: [255, 255, 255],
-            width: 2
-          }
+            width: 2,
+          },
         };
 
         const pointGraphic = new Graphic({
           geometry: point,
-          symbol: markerSymbol
+          symbol: markerSymbol,
         });
 
         graphicsLayer.add(pointGraphic);
 
-        // Set selectedPoint
+        // Save selected pickup location
         WildRydes.map.selectedPoint = {
           latitude: point.latitude,
-          longitude: point.longitude
+          longitude: point.longitude,
         };
 
         displayUpdate(
           `Pickup location set to [${point.latitude.toFixed(4)}, ${point.longitude.toFixed(4)}]`
         );
 
-        // Enable request button
-        $("#request").prop("disabled", false).text("Request Unicorn");
+        // Enable the request button
+        $('#request').prop('disabled', false).text('Request Unicorn');
       });
     });
 
-    // Request unicorn (ride) API call
+    // Send ride request to API
     function requestUnicorn(pickupLocation) {
-      WildRydes.authToken.then(function(token) {
+      WildRydes.authToken.then(function (token) {
         $.ajax({
-          method: "POST",
-          url: API_INVOKE_URL + "/ride",
+          method: 'POST',
+          url: API_INVOKE_URL + '/ride',
           headers: {
-            Authorization: token
+            Authorization: token,
           },
           data: JSON.stringify({
             PickupLocation: {
               Latitude: pickupLocation.latitude,
-              Longitude: pickupLocation.longitude
-            }
+              Longitude: pickupLocation.longitude,
+            },
           }),
-          contentType: "application/json",
-          success: function(result) {
+          contentType: 'application/json',
+          success: function (result) {
             displayUpdate(
               `Unicorn ${result.Unicorn.Name} is on the way! Color: ${result.Unicorn.Color}`
             );
-            $("#request").prop("disabled", true).text("Set pickup");
+            // Reset button and clear selected point
+            $('#request').prop('disabled', true).text('Set pickup');
             WildRydes.map.selectedPoint = null;
           },
-          error: function(jqXHR) {
-            displayUpdate("Error requesting unicorn: " + jqXHR.responseText);
-          }
+          error: function (jqXHR) {
+            displayUpdate('Error requesting unicorn: ' + jqXHR.responseText);
+          },
         });
       });
     }
 
-    // Button click handler
-    $(function() {
-      $("#request").prop("disabled", true);
+    // Set up button and sign out handlers
+    $(function () {
+      $('#request').prop('disabled', true);
 
-      $("#request").click(function(e) {
+      $('#request').click(function (e) {
         e.preventDefault();
         const loc = WildRydes.map.selectedPoint;
         if (!loc) {
-          alert("Please select a pickup location first.");
+          alert('Please select a pickup location first.');
           return;
         }
         requestUnicorn(loc);
       });
 
-      $("#signOut").click(function(e) {
+      $('#signOut').click(function (e) {
         e.preventDefault();
-        alert("Sign out is disabled in this demo.");
+        alert('Sign out is disabled in this demo.');
       });
     });
   </script>
