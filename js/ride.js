@@ -5,16 +5,17 @@ WildRydes.map = WildRydes.map || {};
 
 (function rideScopeWrapper($) {
     var authToken;
-    WildRydes.authToken.then(function setAuthToken(token) {
-        if (token) {
-            authToken = token;
-        } else {
-            window.location.href = '/signin.html';
-        }
-    }).catch(function handleTokenError(error) {
-        alert(error);
-        window.location.href = '/signin.html';
-    });
+
+    // ► No more redirect on missing token ◄
+    WildRydes.authToken
+      .then(function setAuthToken(token) {
+        authToken = token || null;
+      })
+      .catch(function handleTokenError(error) {
+        console.warn('Auth token error (ignored):', error);
+        authToken = null;
+      });
+
     function requestUnicorn(pickupLocation) {
         $.ajax({
             method: 'POST',
@@ -33,23 +34,21 @@ WildRydes.map = WildRydes.map || {};
             error: function ajaxError(jqXHR, textStatus, errorThrown) {
                 console.error('Error requesting ride: ', textStatus, ', Details: ', errorThrown);
                 console.error('Response: ', jqXHR.responseText);
-                alert('An error occured when requesting your unicorn:\n' + jqXHR.responseText);
+                alert('An error occurred when requesting your unicorn:\n' + jqXHR.responseText);
             }
         });
     }
 
     function completeRequest(result) {
-        var unicorn;
-        var pronoun;
+        var unicorn = result.Unicorn;
+        var pronoun = unicorn.Gender === 'Male' ? 'his' : 'her';
         console.log('Response received from API: ', result);
-        unicorn = result.Unicorn;
-        pronoun = unicorn.Gender === 'Male' ? 'his' : 'her';
+
         displayUpdate(unicorn.Name + ', your ' + unicorn.Color + ' unicorn, is on ' + pronoun + ' way.');
         animateArrival(function animateCallback() {
             displayUpdate(unicorn.Name + ' has arrived. Giddy up!');
             WildRydes.map.unsetLocation();
-            $('#request').prop('disabled', 'disabled');
-            $('#request').text('Set Pickup');
+            $('#request').prop('disabled', true).text('Set Pickup');
         });
     }
 
@@ -59,7 +58,8 @@ WildRydes.map = WildRydes.map || {};
         $('#signOut').click(function() {
             WildRydes.signOut();
             alert("You have been signed out.");
-            window.location = "signin.html";
+            // Instead of redirecting, just reload the page
+            location.reload();
         });
         $(WildRydes.map).on('pickupChange', handlePickupChanged);
 
@@ -73,35 +73,30 @@ WildRydes.map = WildRydes.map || {};
         if (!_config.api.invokeUrl) {
             $('#noApiMessage').show();
         }
+        // Always show the main map container
+        $('#main').show();
     });
 
     function handlePickupChanged() {
-        var requestButton = $('#request');
-        requestButton.text('Request Unicorn');
-        requestButton.prop('disabled', false);
+        $('#request').text('Request Unicorn').prop('disabled', false);
     }
 
     function handleRequestClick(event) {
-        var pickupLocation = WildRydes.map.selectedPoint;
         event.preventDefault();
-        requestUnicorn(pickupLocation);
+        requestUnicorn(WildRydes.map.selectedPoint);
     }
 
     function animateArrival(callback) {
         var dest = WildRydes.map.selectedPoint;
         var origin = {};
 
-        if (dest.latitude > WildRydes.map.center.latitude) {
-            origin.latitude = WildRydes.map.extent.minLat;
-        } else {
-            origin.latitude = WildRydes.map.extent.maxLat;
-        }
+        origin.latitude = (dest.latitude > WildRydes.map.center.latitude)
+            ? WildRydes.map.extent.minLat
+            : WildRydes.map.extent.maxLat;
 
-        if (dest.longitude > WildRydes.map.center.longitude) {
-            origin.longitude = WildRydes.map.extent.minLng;
-        } else {
-            origin.longitude = WildRydes.map.extent.maxLng;
-        }
+        origin.longitude = (dest.longitude > WildRydes.map.center.longitude)
+            ? WildRydes.map.extent.minLng
+            : WildRydes.map.extent.maxLng;
 
         WildRydes.map.animate(origin, dest, callback);
     }
