@@ -1,21 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
   <title>Wild Rydes</title>
-  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
-  <link rel="stylesheet" href="https://js.arcgis.com/4.6/esri/css/main.css">
-  <link rel="stylesheet" href="css/ride.css">
-  <link rel="stylesheet" href="css/message.css">
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <link
+    rel="stylesheet"
+    href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+    crossorigin="anonymous"
+  />
+  <link rel="stylesheet" href="https://js.arcgis.com/4.6/esri/css/main.css" />
+  <style>
+    html,
+    body,
+    #map {
+      padding: 0;
+      margin: 0;
+      height: 400px;
+      width: 100%;
+    }
+    .info {
+      margin: 10px;
+    }
+  </style>
 </head>
 <body>
-
   <div class="info panel panel-default">
     <div class="panel-heading">
       <button id="request" class="btn btn-primary" disabled>Set pickup</button>
       <div class="dropdown pull-right">
-        <button class="btn dropdown-toggle" data-toggle="dropdown">Account <span class="caret"></span></button>
+        <button class="btn dropdown-toggle" data-toggle="dropdown">
+          Account <span class="caret"></span>
+        </button>
         <ul class="dropdown-menu">
           <li><a id="signOut" href="#">Sign out</a></li>
         </ul>
@@ -28,70 +44,165 @@
     </div>
   </div>
 
-  <div id="main">
-    <div id="map"></div>
-  </div>
+  <div id="map"></div>
 
   <!-- Load dependencies -->
   <script src="js/vendor/jquery-3.1.0.js"></script>
   <script src="js/vendor/bootstrap.min.js"></script>
   <script src="https://js.arcgis.com/4.6/"></script>
-  <script src="js/config.js"></script>
-  <script src="js/esri-map.js"></script>
 
   <script>
-    const authToken = 'dummy-token'; // Bypass auth for testing
-
-    function requestUnicorn(pickupLocation) {
-      $.ajax({
-        method: 'POST',
-        url: _config.api.invokeUrl + '/ride',
-        headers: {
-          Authorization: authToken
-        },
-        data: JSON.stringify({
-          PickupLocation: {
-            Latitude: pickupLocation.latitude,
-            Longitude: pickupLocation.longitude
-          }
-        }),
-        contentType: 'application/json',
-        success: function (result) {
-          $('#updates').append('<li>Unicorn is on the way: ' + result.Unicorn.Name + '</li>');
-        },
-        error: function (err) {
-          alert('API Error: ' + err.responseText);
+    // Block redirects to signin.html
+    ['assign', 'replace'].forEach(fn => {
+      const orig = window.location[fn];
+      window.location[fn] = function(url) {
+        if (typeof url === 'string' && url.includes('signin.html')) {
+          console.log('Blocked redirect to signin:', url);
+          return;
         }
-      });
-    }
-
-    function enableRequestButton() {
-      $('#request').text('Request Unicorn');
-      $('#request').prop('disabled', false);
-    }
-
-    $(function () {
-      $('#main').show();
-
-      if (typeof initializeMap === 'function') {
-        initializeMap();
+        return orig.call(window.location, url);
+      };
+    });
+    Object.defineProperty(window.location, 'href', {
+      set(url) {
+        if (typeof url === 'string' && url.includes('signin.html')) {
+          console.log('Blocked setting href to signin:', url);
+          return;
+        }
+        window.location.assign(url);
+      },
+      get() {
+        return window.location.toString();
       }
+    });
 
-      $(WildRydes.map).on('pickupChange', function () {
-        enableRequestButton();
+    // Initialize WildRydes global object
+    window.WildRydes = window.WildRydes || {};
+    WildRydes.map = WildRydes.map || {};
+    WildRydes.authToken = Promise.resolve('dummy-token'); // Dummy token for testing
+    WildRydes.map.selectedPoint = null;
+
+    // API invoke URL
+    const API_INVOKE_URL = "https://8u38kmxsz7.execute-api.us-east-2.amazonaws.com/Prod";
+
+    // Function to display messages in the updates list
+    function displayUpdate(text) {
+      $('#updates').append($('<li>').text(text));
+    }
+
+    // Initialize map and add click handler
+    require([
+      "esri/Map",
+      "esri/views/MapView",
+      "esri/Graphic",
+      "esri/layers/GraphicsLayer"
+    ], function(Map, MapView, Graphic, GraphicsLayer) {
+      const map = new Map({
+        basemap: "streets-navigation-vector"
       });
 
-      $('#request').click(function (e) {
+      const view = new MapView({
+        container: "map",
+        map: map,
+        center: [-122.4194, 37.7749], // San Francisco
+        zoom: 12
+      });
+
+      const graphicsLayer = new GraphicsLayer();
+      map.add(graphicsLayer);
+
+      // On map click
+      view.on("click", function(event) {
+        // Clear previous graphics
+        graphicsLayer.removeAll();
+
+        // Add a marker at clicked location
+        const point = {
+          type: "point",
+          longitude: event.mapPoint.longitude,
+          latitude: event.mapPoint.latitude
+        };
+
+        const markerSymbol = {
+          type: "simple-marker",
+          color: "blue",
+          outline: {
+            color: [255, 255, 255],
+            width: 2
+          }
+        };
+
+        const pointGraphic = new Graphic({
+          geometry: point,
+          symbol: markerSymbol
+        });
+
+        graphicsLayer.add(pointGraphic);
+
+        // Set selectedPoint
+        WildRydes.map.selectedPoint = {
+          latitude: point.latitude,
+          longitude: point.longitude
+        };
+
+        displayUpdate(
+          `Pickup location set to [${point.latitude.toFixed(4)}, ${point.longitude.toFixed(4)}]`
+        );
+
+        // Enable request button
+        $("#request").prop("disabled", false).text("Request Unicorn");
+      });
+    });
+
+    // Request unicorn (ride) API call
+    function requestUnicorn(pickupLocation) {
+      WildRydes.authToken.then(function(token) {
+        $.ajax({
+          method: "POST",
+          url: API_INVOKE_URL + "/ride",
+          headers: {
+            Authorization: token
+          },
+          data: JSON.stringify({
+            PickupLocation: {
+              Latitude: pickupLocation.latitude,
+              Longitude: pickupLocation.longitude
+            }
+          }),
+          contentType: "application/json",
+          success: function(result) {
+            displayUpdate(
+              `Unicorn ${result.Unicorn.Name} is on the way! Color: ${result.Unicorn.Color}`
+            );
+            $("#request").prop("disabled", true).text("Set pickup");
+            WildRydes.map.selectedPoint = null;
+          },
+          error: function(jqXHR) {
+            displayUpdate("Error requesting unicorn: " + jqXHR.responseText);
+          }
+        });
+      });
+    }
+
+    // Button click handler
+    $(function() {
+      $("#request").prop("disabled", true);
+
+      $("#request").click(function(e) {
         e.preventDefault();
         const loc = WildRydes.map.selectedPoint;
-        if (loc) {
-          requestUnicorn(loc);
-        } else {
-          alert('Please select a pickup location first.');
+        if (!loc) {
+          alert("Please select a pickup location first.");
+          return;
         }
+        requestUnicorn(loc);
+      });
+
+      $("#signOut").click(function(e) {
+        e.preventDefault();
+        alert("Sign out is disabled in this demo.");
       });
     });
   </script>
-
 </body>
 </html>
