@@ -11,8 +11,8 @@
     <meta name="description" content="Serverless web application example">
     <meta name="author" content="">
 
-
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+        integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
     <link rel="stylesheet" href="https://js.arcgis.com/4.6/esri/css/main.css">
     <link rel="stylesheet" href="css/ride.css">
     <link rel="stylesheet" href="css/message.css">
@@ -24,7 +24,8 @@
         <div class="panel-heading">
             <button id="request" class="btn btn-primary" disabled="disabled">Set pickup</button>
             <div class="dropdown pull-right">
-                <button id="accountLink" class="btn" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <button id="accountLink" class="btn" type="button" data-toggle="dropdown" aria-haspopup="true"
+                    aria-expanded="false">
                     Account <span class="caret"></span>
                 </button>
                 <ul class="dropdown-menu" aria-labelledby="accountLink">
@@ -46,8 +47,10 @@
                 <h3 class="panel-title">Successfully Authenticated!</h3>
             </div>
             <div class="panel-body">
-                <p>This page is not functional yet because there is no API invoke URL configured in <a href="/js/config.js">/js/config.js</a>. You'll configure this in Module 3.</p>
-                <p>In the meantime, if you'd like to test the Amazon Cognito user pool authorizer for your API, use the auth token below:</p>
+                <p>This page is not functional yet because there is no API invoke URL configured in <a
+                        href="/js/config.js">/js/config.js</a>. You'll configure this in Module 3.</p>
+                <p>In the meantime, if you'd like to test the Amazon Cognito user pool authorizer for your API, use the
+                    auth token below:</p>
                 <textarea class="authToken"></textarea>
             </div>
         </div>
@@ -60,7 +63,8 @@
                 <h3 class="panel-title">No Cognito User Pool Configured</h3>
             </div>
             <div class="panel-body">
-                <p>There is no user pool configured in <a href="/js/config.js">/js/config.js</a>. You'll configure this in Module 2 of the workshop.</p>
+                <p>There is no user pool configured in <a href="/js/config.js">/js/config.js</a>. You'll configure this in
+                    Module 2 of the workshop.</p>
             </div>
         </div>
     </div>
@@ -74,7 +78,8 @@
         <div class="modal-dialog" role="document">
             <div class="modal-content">
                 <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                            aria-hidden="true">&times;</span></button>
                     <h4 class="modal-title" id="myModalLabel">Your Auth Token</h4>
                 </div>
                 <div class="modal-body">
@@ -102,6 +107,25 @@
         // Override auth check to bypass authentication
         $(function () {
             WildRydes.authToken = Promise.resolve('dummy-token');
+
+            // Block redirects to signin.html
+            const originalAssign = window.location.assign;
+            window.location.assign = function (url) {
+                if (typeof url === "string" && url.includes("signin.html")) {
+                    console.log("Blocked redirect to signin.html");
+                } else {
+                    originalAssign.call(window.location, url);
+                }
+            };
+
+            const originalReplace = window.location.replace;
+            window.location.replace = function (url) {
+                if (typeof url === "string" && url.includes("signin.html")) {
+                    console.log("Blocked redirect to signin.html");
+                } else {
+                    originalReplace.call(window.location, url);
+                }
+            };
 
             $('#noApiMessage').hide();
             $('#noCognitoMessage').hide();
