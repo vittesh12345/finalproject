@@ -5,6 +5,6 @@ window._config = {
     region: 'us-east-2'                            // ✅ Must match your user pool region
   },
   api: {
-    invokeUrl: 'https://your-api-id.execute-api.us-east-2.amazonaws.com/prod' // Update this if needed
+    invokeUrl: 'https://8u38kmxsz7.execute-api.us-east-2.amazonaws.com/Prod' // Update this if needed
   }
 };
