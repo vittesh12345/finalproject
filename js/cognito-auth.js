@@ -30,26 +30,13 @@ var WildRydes = window.WildRydes || {};
     };
 
     WildRydes.authToken = new Promise(function fetchCurrentAuthToken(resolve, reject) {
-        var cognitoUser = userPool.getCurrentUser();
-
-        if (cognitoUser) {
-            cognitoUser.getSession(function sessionCallback(err, session) {
-                if (err) {
-                    reject(err);
-                } else if (!session.isValid()) {
-                    resolve(null);
-                } else {
-                    resolve(session.getIdToken().getJwtToken());
-                }
-            });
-        } else {
-            resolve(null);
-        }
+        // We skip checking user session and just resolve null (no token)
+        resolve(null);
     });
-
 
     /*
      * Cognito User Pool functions
+     * (Keep as is in case you want to re-enable)
      */
 
     function register(email, password, onSuccess, onFailure) {
@@ -71,16 +58,9 @@ var WildRydes = window.WildRydes || {};
     }
 
     function signin(email, password, onSuccess, onFailure) {
-        var authenticationDetails = new AmazonCognitoIdentity.AuthenticationDetails({
-            Username: email,
-            Password: password
-        });
-
-        var cognitoUser = createCognitoUser(email);
-        cognitoUser.authenticateUser(authenticationDetails, {
-            onSuccess: onSuccess,
-            onFailure: onFailure
-        });
+        // **Disable actual authentication**
+        // Instead of calling Cognito, just call onSuccess immediately to redirect:
+        onSuccess();
     }
 
     function verify(email, code, onSuccess, onFailure) {
@@ -114,9 +94,10 @@ var WildRydes = window.WildRydes || {};
         var email = $('#emailInputSignin').val();
         var password = $('#passwordInputSignin').val();
         event.preventDefault();
+        // This will just redirect immediately without validation:
         signin(email, password,
             function signinSuccess() {
-                console.log('Successfully Logged In');
+                console.log('Sign in bypassed, redirecting to ride.html');
                 window.location.href = 'ride.html';
             },
             function signinError(err) {
