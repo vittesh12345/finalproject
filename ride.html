@@ -3,8 +3,8 @@
 
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Wild Rydes</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="description" content="Serverless web application example" />
   <meta name="author" content="" />
@@ -17,13 +17,6 @@
   <link rel="stylesheet" href="https://js.arcgis.com/4.6/esri/css/main.css" />
   <link rel="stylesheet" href="css/ride.css" />
   <link rel="stylesheet" href="css/message.css" />
-
-  <style>
-    #map {
-      height: 400px;
-      width: 100%;
-    }
-  </style>
 </head>
 
 <body>
@@ -31,7 +24,14 @@
     <div class="panel-heading">
       <button id="request" class="btn btn-primary" disabled="disabled">Set pickup</button>
       <div class="dropdown pull-right">
-        <button id="accountLink" class="btn dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+        <button
+          id="accountLink"
+          class="btn"
+          type="button"
+          data-toggle="dropdown"
+          aria-haspopup="true"
+          aria-expanded="false"
+        >
           Account <span class="caret"></span>
         </button>
         <ul class="dropdown-menu" aria-labelledby="accountLink">
@@ -50,158 +50,104 @@
     <div id="map"></div>
   </div>
 
-  <!-- Load dependencies -->
   <script src="js/vendor/jquery-3.1.0.js"></script>
   <script src="js/vendor/bootstrap.min.js"></script>
+  <script src="js/vendor/aws-cognito-sdk.min.js"></script>
+  <script src="js/vendor/amazon-cognito-identity.min.js"></script>
   <script src="https://js.arcgis.com/4.6/"></script>
-  <script src="js/config.js"></script>
+  <script src="js/config.js"></script> <!-- Make sure this has your UserPoolId and ClientId -->
+  <script src="js/esri-map.js"></script>
 
   <script>
-    // Block redirects to signin.html to prevent kicking back
-    ['assign', 'replace'].forEach(function (fn) {
-      const orig = window.location[fn];
-      window.location[fn] = function (url) {
-        if (typeof url === 'string' && url.includes('signin.html')) {
-          console.log('Blocked redirect to signin:', url);
+    var authToken = null;
+
+    // Initialize Cognito User Pool
+    var poolData = {
+      UserPoolId: _config.cognito.userPoolId, // e.g. 'us-east-2_xxxxxxx'
+      ClientId: _config.cognito.userPoolClientId, // your client id here
+    };
+
+    var userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+
+    // Get current user from local storage
+    var cognitoUser = userPool.getCurrentUser();
+
+    if (!cognitoUser) {
+      alert("You are not logged in! Redirecting to signin page.");
+      window.location.href = "signin.html";
+    } else {
+      // Get session and token
+      cognitoUser.getSession(function (err, session) {
+        if (err || !session.isValid()) {
+          alert("Session expired or invalid. Redirecting to signin.");
+          window.location.href = "signin.html";
           return;
         }
-        return orig.call(window.location, url);
-      };
-    });
+        authToken = session.getIdToken().getJwtToken();
 
-    Object.defineProperty(window.location, 'href', {
-      set: function (url) {
-        if (typeof url === 'string' && url.includes('signin.html')) {
-          console.log('Blocked setting href to signin:', url);
-          return;
-        }
-        window.location.assign(url);
-      },
-      get: function () {
-        return window.location.toString();
-      },
-    });
-
-    // Set dummy auth token
-    window.WildRydes = window.WildRydes || {};
-    WildRydes.authToken = Promise.resolve('dummy-token');
-    WildRydes.map = WildRydes.map || {};
-    WildRydes.map.selectedPoint = null;
-
-    // Your API invoke URL
-    const API_INVOKE_URL = 'https://8u38kmxsz7.execute-api.us-east-2.amazonaws.com/Prod';
-
-    // Display updates in the list
-    function displayUpdate(text) {
-      $('#updates').append($('<li>').text(text));
+        // Enable request button once token is valid
+        $('#request').prop('disabled', false);
+      });
     }
 
-    // Initialize Esri map and setup click to select pickup point
-    require(['esri/Map', 'esri/views/MapView', 'esri/Graphic', 'esri/layers/GraphicsLayer'], function (Map, MapView, Graphic, GraphicsLayer) {
-      const map = new Map({
-        basemap: 'streets-navigation-vector',
-      });
-
-      const view = new MapView({
-        container: 'map',
-        map: map,
-        center: [-122.4194, 37.7749], // SF coords
-        zoom: 12,
-      });
-
-      const graphicsLayer = new GraphicsLayer();
-      map.add(graphicsLayer);
-
-      view.on('click', function (event) {
-        graphicsLayer.removeAll();
-
-        const point = {
-          type: 'point',
-          longitude: event.mapPoint.longitude,
-          latitude: event.mapPoint.latitude,
-        };
-
-        const markerSymbol = {
-          type: 'simple-marker',
-          color: 'blue',
-          outline: {
-            color: [255, 255, 255],
-            width: 2,
-          },
-        };
-
-        const pointGraphic = new Graphic({
-          geometry: point,
-          symbol: markerSymbol,
-        });
-
-        graphicsLayer.add(pointGraphic);
-
-        // Save selected pickup location
-        WildRydes.map.selectedPoint = {
-          latitude: point.latitude,
-          longitude: point.longitude,
-        };
-
-        displayUpdate(
-          `Pickup location set to [${point.latitude.toFixed(4)}, ${point.longitude.toFixed(4)}]`
-        );
-
-        // Enable the request button
-        $('#request').prop('disabled', false).text('Request Unicorn');
-      });
-    });
-
-    // Send ride request to API
+    // Request Unicorn API call
     function requestUnicorn(pickupLocation) {
-      WildRydes.authToken.then(function (token) {
-        $.ajax({
-          method: 'POST',
-          url: API_INVOKE_URL + '/ride',
-          headers: {
-            Authorization: token,
+      $.ajax({
+        method: "POST",
+        url: "https://8u38kmxsz7.execute-api.us-east-2.amazonaws.com/Prod/ride",
+        headers: {
+          Authorization: authToken,
+        },
+        data: JSON.stringify({
+          PickupLocation: {
+            Latitude: pickupLocation.latitude,
+            Longitude: pickupLocation.longitude,
           },
-          data: JSON.stringify({
-            PickupLocation: {
-              Latitude: pickupLocation.latitude,
-              Longitude: pickupLocation.longitude,
-            },
-          }),
-          contentType: 'application/json',
-          success: function (result) {
-            displayUpdate(
-              `Unicorn ${result.Unicorn.Name} is on the way! Color: ${result.Unicorn.Color}`
-            );
-            // Reset button and clear selected point
-            $('#request').prop('disabled', true).text('Set pickup');
-            WildRydes.map.selectedPoint = null;
-          },
-          error: function (jqXHR) {
-            displayUpdate('Error requesting unicorn: ' + jqXHR.responseText);
-          },
-        });
+        }),
+        contentType: "application/json",
+        success: function (result) {
+          $('#updates').append(
+            `<li>Unicorn ${result.Unicorn.Name} is on the way!</li>`
+          );
+        },
+        error: function (err) {
+          alert("API Error: " + err.responseText);
+        },
       });
     }
 
-    // Set up button and sign out handlers
+    // Setup UI and map
     $(function () {
-      $('#request').prop('disabled', true);
+      if (typeof initializeMap === "function") {
+        initializeMap();
+      }
+
+      // Enable Request button when a pickup location is set
+      $(WildRydes.map).on("pickupChange", function () {
+        $('#request').text('Request Unicorn');
+        $('#request').prop('disabled', false);
+      });
 
       $('#request').click(function (e) {
         e.preventDefault();
-        const loc = WildRydes.map.selectedPoint;
-        if (!loc) {
-          alert('Please select a pickup location first.');
-          return;
+        var loc = WildRydes.map.selectedPoint;
+        if (loc) {
+          requestUnicorn(loc);
+        } else {
+          alert("Please select a pickup location first.");
         }
-        requestUnicorn(loc);
       });
 
       $('#signOut').click(function (e) {
         e.preventDefault();
-        alert('Sign out is disabled in this demo.');
+        if (cognitoUser) {
+          cognitoUser.signOut();
+          alert("You have been signed out.");
+          window.location.href = "signin.html";
+        }
       });
     });
   </script>
 </body>
+
 </html>
