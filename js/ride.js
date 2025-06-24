@@ -3,10 +3,67 @@
 var WildRydes = window.WildRydes || {};
 WildRydes.map = WildRydes.map || {};
 
+// New: Handle Cognito OAuth2 code exchange and token storage
+(function handleAuthCode() {
+    var urlParams = new URLSearchParams(window.location.search);
+    var code = urlParams.get('code');
+
+    if (code) {
+        // Prepare POST data for token exchange
+        var data = new URLSearchParams();
+        data.append('grant_type', 'authorization_code');
+        data.append('client_id', _config.cognito.clientId);
+        data.append('code', code);
+        data.append('redirect_uri', _config.cognito.redirectUri);
+
+        fetch('https://us-east-2mocbbb1jn.auth.us-east-2.amazoncognito.com/oauth2/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: data.toString()
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Token exchange HTTP error: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(tokens => {
+            if (tokens.id_token) {
+                // Save id_token to localStorage
+                localStorage.setItem('id_token', tokens.id_token);
+
+                // Remove the code param from the URL for cleanliness
+                window.history.replaceState({}, document.title, '/ride.html');
+
+                // Optionally reload the page or update UI
+                window.location.reload();
+            } else {
+                console.error('Token response missing id_token:', tokens);
+                alert('Login failed: no token received.');
+            }
+        })
+        .catch(error => {
+            console.error('Error during token exchange:', error);
+            alert('Error exchanging authorization code. Check console.');
+        });
+    }
+})();
+
+// Setup WildRydes.authToken promise to return stored token
+WildRydes.authToken = new Promise(function(resolve, reject) {
+    var token = localStorage.getItem('id_token');
+    if (token) {
+        resolve(token);
+    } else {
+        reject('No auth token found');
+    }
+});
+
 (function rideScopeWrapper($) {
     var authToken;
 
-    // ► No more redirect on missing token ◄
     WildRydes.authToken
       .then(function setAuthToken(token) {
         authToken = token || null;
@@ -52,13 +109,13 @@ WildRydes.map = WildRydes.map || {};
         });
     }
 
-    // Register click handler for #request button
     $(function onDocReady() {
         $('#request').click(handleRequestClick);
         $('#signOut').click(function() {
+            // Sign out clears stored token and reloads page
+            localStorage.removeItem('id_token');
             WildRydes.signOut();
             alert("You have been signed out.");
-            // Instead of redirecting, just reload the page
             location.reload();
         });
         $(WildRydes.map).on('pickupChange', handlePickupChanged);
@@ -73,7 +130,6 @@ WildRydes.map = WildRydes.map || {};
         if (!_config.api.invokeUrl) {
             $('#noApiMessage').show();
         }
-        // Always show the main map container
         $('#main').show();
     });
 
