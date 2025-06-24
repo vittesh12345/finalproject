@@ -1,20 +1,13 @@
+<!-- Minimal working version -->
 <!DOCTYPE html>
 <html class="no-js">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
   <title>Sign In</title>
   <meta name="viewport" content="width=device-width">
-
-  <link rel="stylesheet" href="css/font.css">
-  <link rel="stylesheet" href="css/normalize.css">
   <link rel="stylesheet" href="css/index.css">
-  <link rel="stylesheet" href="css/message.css">
 </head>
 <body>
-
-  <!-- HIDDEN: Cognito warning -->
-  <div id="noCognitoMessage" class="configMessage" style="display: none;"></div>
 
   <header>
     <img src="images/logo.png">
@@ -23,24 +16,17 @@
   <section class="form-wrap">
     <h1>Sign In</h1>
     <form id="signinForm">
-      <input type="email" id="emailInputSignin" placeholder="Email" required>
-      <input type="password" id="passwordInputSignin" placeholder="Password" pattern=".*" required>
+      <input type="text" placeholder="Just click to enter!" readonly>
       <input type="submit" value="Sign in">
     </form>
   </section>
 
-  <!-- Only load jQuery and config -->
   <script src="js/vendor/jquery-3.1.0.js"></script>
-  <script src="js/config.js"></script>
-
-  <!-- Bypass Cognito and redirect -->
   <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      $('#noCognitoMessage').hide();
-
-      $('#signinForm').submit(function (e) {
+    $(function () {
+      $('#signinForm').on('submit', function (e) {
         e.preventDefault();
-        window.location.href = "/ride.html"; // Direct to ride page
+        window.location.href = "ride.html"; // Redirect to ride page
       });
     });
   </script>
