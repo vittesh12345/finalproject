@@ -1,7 +1,8 @@
 var _config = {
   cognito: {
-    userPoolId: 'us-east-2_xxxxxxx', // replace with your real user pool id
-    userPoolClientId: '12enu759j2ul7vdgqlkavmrbf', // your client id
+    userPoolId: 'us-east-2_mOCBBb1jn',
+    clientId: '12enu759j2ul7vdgqlkavmrbf',
+    redirectUri: 'https://my-wildrydes-frontend-123.s3.us-east-2.amazonaws.com/ride.html',
     region: 'us-east-2',
   },
   api: {
